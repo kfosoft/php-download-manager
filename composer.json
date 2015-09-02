@@ -1,0 +1,25 @@
+{
+    "name": "kfosoft/php-download-manager",
+    "description": "PHP Download Manager",
+    "keywords": [
+        "php",
+        "download",
+        "download manager",
+        "php manager",
+        "php download",
+        "php download manager"
+    ],
+    "type": "library",
+    "authors": [
+        {
+            "name": "Cyril Turkevich",
+            "email": "cyril.turkevich@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0"
+    },
+    "autoload": {
+        "psr-4": {"kfosoft\\": ""}
+    }
+}
