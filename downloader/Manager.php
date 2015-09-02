@@ -1,7 +1,7 @@
 <?php
 namespace kfosoft\downloader;
 
-use Phalcon\Exception;
+use Exception;
 
 /**
  * Download Manager class. It has method for download files with wget.
