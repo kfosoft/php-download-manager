@@ -12,13 +12,13 @@ use Exception;
 class Manager
 {
     /** @var string This is where the downloads and status files go. Make sure this directory exists and is WRITABLE by the webserver process! */
-    public $downloadDir = '/home/download_user/public_html/downloads';
+    public $downloadDir = '';
 
     /** @var string This is where the downloads and status files go. Make sure this directory exists and is WRITABLE by the webserver process! */
-    public $tmpDir = '/home/download_user/temp';
+    public $tmpDir = '';
 
     /** @var string This is where the downloads and status files go. Make sure this directory exists and is WRITABLE by the webserver process! */
-    public $logFile = '/home/download_user/temp/downloady.log';
+    public $logFile = '';
 
     /** @var string Path and name of your server's Wget-compatible binary */
     public $wget = '/usr/local/bin/wget';
@@ -39,29 +39,13 @@ class Manager
         5 => "/ --[0-9:]+--/i",
     ];
 
-    /** @var null|static Instance. */
-    private static $_instance = null;
-
-    private function __construct()
+    public function __construct($downloadDir = '/home/ubuntu/public_html/downloads', $tmpDir = '/home/ubuntu/temp', $logFile = '/home/ubuntu/temp/download.log')
     {
+        $this->downloadDir = $downloadDir;
+        $this->tmpDir = $tmpDir;
+        $this->logFile = $logFile;
         (!file_exists($this->tmpDir)) && @mkdir($this->tmpDir, 0700); // attempt to create; it may fail...
         (!file_exists($this->downloadDir)) && @mkdir($this->downloadDir, 0700); // attempt to create; it may fail...
-
-        $stat = stat($this->tmpDir);
-        if ($stat['mode'] & 0007) {
-            throw new Exception("WARNING: {$this->tmpDir} is publicly accessible! This is a security risk, as temporary files may contain passwords.\n");
-        }
-    }
-
-    /**
-     * Singleton static method.
-     * @return null|static
-     */
-    public static function instance()
-    {
-        (null === self::$_instance) && (self::$_instance = new static());
-
-        return self::$_instance;
     }
 
     /**
