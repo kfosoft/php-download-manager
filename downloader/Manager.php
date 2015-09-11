@@ -200,10 +200,9 @@ class Manager
     /**
      * Get details.
      * @param string $sid sid.
-     * @param bool $verbose
-     * @return array
+     * @return StatResultForm
      */
-    public function getDetails($sid, $verbose = false)
+    public function getDetails($sid)
     {
         $statFile = "{$this->tmpDir}/{$sid}.stat";
         if (!@is_file($statFile)) {
@@ -212,49 +211,41 @@ class Manager
 
         $fileResource = fopen($statFile, 'rb');
 
-        $result = [
-            'url'      => null,
-            'filename' => null,
-            'size'     => null,
-            'percent'  => null,
-            'status'   => null,
-            'fetched'  => null,
-            'speed'    => null
-        ];
+        $result = new StatResultForm();
 
         while (!feof($fileResource)) {
             $line = fgets($fileResource, 2048); // read a line
             if (preg_match($this->_patterns['fetched'], $line, $matches)) {
-                $result['fetched'] = substr(explode('/', $matches[0])[0], 1);
+                $result->fetched = substr(explode('/', $matches[0])[0], 1);
             }
 
             switch (true) {
                 case preg_match($this->_patterns['url'], $line, $matches) :
-                    $result['url'] = $matches[0];
+                    $result->url = $matches[0];
                     continue;
                 case preg_match($this->_patterns['size'], $line, $matches) :
-                    $result['size'] = str_replace([' ', ','], '', $matches[1]);
+                    $result->size = str_replace([' ', ','], '', $matches[1]);
                     continue;
                 case preg_match($this->_patterns['filename'], $line, $matches) : // Destination file
                     foreach ($matches as $match) {
                         if (is_file($match = str_replace(['’', '‘'], ['', ''], $match))) {
-                            $result['filename'] = $match;
+                            $result->filename = $match;
                             break;
                         }
                     }
                     continue;
                 case preg_match($this->_patterns['percent'], $line, $matches) :
-                    $result['percent'] = (int)($matches[0]);
+                    $result->percent = (int)($matches[0]);
                     continue;
                 case preg_match($this->_patterns['speed'], $line, $matches) :
-                    $result['speed'] = ($matches[1]);
+                    $result->speed = ($matches[1]);
                     continue;
                 case preg_match($this->_patterns['status'], $line, $matches) && preg_match('/\d{3}/', $matches[0],
                         $status):
-                    $result['status'] = !isset($status[0]) ? null : $status[0];
+                    $result->status = !isset($status[0]) ? null : $status[0];
                     continue;
                 case preg_match($this->_patterns['finished'], $line, $matches):
-                    $result['done'] = true;
+                    $result->done = true;
                     break;
             }
         }
