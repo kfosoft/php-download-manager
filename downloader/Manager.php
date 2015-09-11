@@ -1,8 +1,6 @@
 <?php
 namespace kfosoft\downloader;
 
-use Exception;
-
 /**
  * Download Manager class. It has method for download files with wget.
  * @package kfosoft\downloader
@@ -31,16 +29,21 @@ class Manager
 
     /** @var array Preg replace patterns. */
     private $_patterns = [
-        0 => "/^\\S+: ([0-9,\\s]+)\\(/",
-        1 => "/^\\s*=> [`\"](.*?)['\"]$/i",
-        2 => "/^[^:]+: [`\"](.*?)['\"]$/i",
-        3 => "/^\\s*([0-9]+[kmgte]) [,. ]{54}\\s*([0-9]{1,3}%)?\\s+([0-9.,]+\\s*[kmgte](?:\\/s)?)\\s*([0-9dhms]*)/i",
-        4 => "/^.*?\\(([^)]+)[^']+ saved \\[([^\\]]+)]$/i",
-        5 => "/ --[0-9:]+--/i",
+        'finished' => '/^FINISHED --\d{1,4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}--/',
+        'status'   => '/.{0,} \d{3} .{0,}/',
+        'url'      => "/(\w{3,4}:\/\/)+[\w\.\/\d]{1,}/",
+        'fetched'  => '/(\[\d{1,}\/\d{1,}\])/',
+        'percent'  => '/\d{1,3}%/',
+        'speed'    => '/\(([\d]?\.?(\d{1,} [\D \/]{1,}))\)/',
+        'size'     => '/^\S+: ([0-9,\s]+)\(/',
+        'filename' => '/‘(\/{1}\w{1,}\.?\w{1,}?){1,}’/'
     ];
 
-    public function __construct($downloadDir = '/home/ubuntu/public_html/downloads', $tmpDir = '/home/ubuntu/temp', $logFile = '/home/ubuntu/temp/download.log')
-    {
+    public function __construct(
+        $downloadDir = '/home/ubuntu/public_html/downloads',
+        $tmpDir = '/home/ubuntu/temp',
+        $logFile = '/home/ubuntu/temp/download.log'
+    ) {
         $this->downloadDir = $downloadDir;
         $this->tmpDir = $tmpDir;
         $this->logFile = $logFile;
@@ -52,10 +55,9 @@ class Manager
      * Add job.
      * @param string $url url job.
      */
-    public function addJob($url)
+    public function addJob($url, $directoryPrefix = null)
     {
-        $url = trim($url);
-        $sid = md5($url);
+        $sid = $this->sid($url);
 
         $urlFile = "{$this->tmpDir}/{$sid}.url";
         $statFile = "{$this->tmpDir}/{$sid}.stat";
@@ -66,10 +68,9 @@ class Manager
 
         $safeUrlFile = escapeshellarg($urlFile);
         $safeUrl = escapeshellarg($url);
-        $safeDownloadDir = escapeshellarg($this->downloadDir);
+        $safeDownloadDir = escapeshellarg(!is_null($directoryPrefix) ? $this->downloadDir . $directoryPrefix : $this->downloadDir);
         $safeStatFile = escapeshellarg($statFile);
         $advancedOptions = "--referer={$safeUrl} --background --input-file={$safeUrlFile} --progress=dot --directory-prefix={$safeDownloadDir} --output-file={$safeStatFile}";
-
         exec("{$this->wget} {$this->wgetOptions} {$advancedOptions}", $output);
         preg_match('/[0-9]+/', $output[0], $output);
 
@@ -212,54 +213,51 @@ class Manager
         $fileResource = fopen($statFile, 'rb');
 
         $result = [
-            'done'     => 0,
-            'url'      => '',
-            'saveFile' => '',
-            'size'     => '- Unknown -',
-            'percent'  => '- Unknown -',
-            'fetched'  => 0,
-            'speed'    => 0,
-            'eta'      => 'n/a'
+            'url'      => null,
+            'filename' => null,
+            'size'     => null,
+            'percent'  => null,
+            'status'   => null,
+            'fetched'  => null,
+            'speed'    => null
         ];
 
-        $count = 0;
         while (!feof($fileResource)) {
-            $count++;
             $line = fgets($fileResource, 2048); // read a line
+            if (preg_match($this->_patterns['fetched'], $line, $matches)) {
+                $result['fetched'] = substr(explode('/', $matches[0])[0], 1);
+            }
 
             switch (true) {
-                case $count == 1 : // URL
-                    $tmp = explode(" ", $line, 2);
-                    $result['url'] = trim($tmp[1]);
-                    break;
-                case preg_match($this->_patterns[0], $line, $matches) : // Length
+                case preg_match($this->_patterns['url'], $line, $matches) :
+                    $result['url'] = $matches[0];
+                    continue;
+                case preg_match($this->_patterns['size'], $line, $matches) :
                     $result['size'] = str_replace([' ', ','], '', $matches[1]);
-                    break;
-                case preg_match($this->_patterns[1], $line, $matches) : // Destination file
-                    $result['saveFile'] = $matches[1];
-                    break;
-                case preg_match($this->_patterns[2], $line, $matches) : // Destination file on newer wget
-                    $result['saveFile'] = $matches[1];
-                    break;
-                case preg_match($this->_patterns[3], $line, $matches) :
-                    $result['fetched'] = $matches[1];
-                    $result['percent'] = floatval($matches[2]);
-                    $result['speed'] = $matches[3];
-                    $result['eta'] = $matches[4];
-                    break;
-                case preg_match($this->_patterns[4], $line, $matches) :
-                    $result['fetched'] = $matches[2];
-                    $result['percent'] = 100;
-                    $result['speed'] = $matches[1];
-                    break;
-                case preg_match($this->_patterns[5], $line, $matches) :
-                    $result['done'] = 1;
+                    continue;
+                case preg_match($this->_patterns['filename'], $line, $matches) : // Destination file
+                    foreach ($matches as $match) {
+                        if (is_file($match = str_replace(['’', '‘'], ['', ''], $match))) {
+                            $result['filename'] = $match;
+                            break;
+                        }
+                    }
+                    continue;
+                case preg_match($this->_patterns['percent'], $line, $matches) :
+                    $result['percent'] = (int)($matches[0]);
+                    continue;
+                case preg_match($this->_patterns['speed'], $line, $matches) :
+                    $result['speed'] = ($matches[1]);
+                    continue;
+                case preg_match($this->_patterns['status'], $line, $matches) && preg_match('/\d{3}/', $matches[0],
+                        $status):
+                    $result['status'] = !isset($status[0]) ? null : $status[0];
+                    continue;
+                case preg_match($this->_patterns['finished'], $line, $matches):
+                    $result['done'] = true;
                     break;
             }
         }
-        fclose($fileResource);
-
-        //$result['exists'] = $result['saveFile'] && file_exists($result['saveFile']);
 
         return $result;
     }
@@ -310,5 +308,14 @@ class Manager
         } else {
             return ($value);
         }
+    }
+
+    /**
+     * @param string $url for create sid.
+     * @return string sid.
+     */
+    public function sid($url)
+    {
+        return md5(trim($url));
     }
 }
