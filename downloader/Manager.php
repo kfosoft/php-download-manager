@@ -104,7 +104,7 @@ class Manager
 
         $details = $this->getDetails($sid);
 
-        if ($details['done'] && file_exists($details['saveFile'])) {
+        if ($details->done && file_exists($details->filename)) {
             return false;
         }
 
@@ -194,7 +194,9 @@ class Manager
      */
     public function getStatFile($sid)
     {
-        return ("{$this->tmpDir}/{$sid}.stat");
+        $statFile = "{$this->tmpDir}/{$sid}.stat";
+
+        return !@is_file($statFile) ? null : $statFile;
     }
 
     /**
@@ -204,8 +206,7 @@ class Manager
      */
     public function getDetails($sid)
     {
-        $statFile = "{$this->tmpDir}/{$sid}.stat";
-        if (!@is_file($statFile)) {
+        if (!($statFile = $this->getStatFile($sid))) {
             return false;
         }
 
@@ -242,7 +243,7 @@ class Manager
                     continue;
                 case preg_match($this->_patterns['status'], $line, $matches) && preg_match('/\d{3}/', $matches[0],
                         $status):
-                    $result->status = !isset($status[0]) ? null : $status[0];
+                    $result->status = !isset($status[0]) ? null : (int)$status[0];
                     continue;
                 case preg_match($this->_patterns['finished'], $line, $matches):
                     $result->done = true;
@@ -279,8 +280,8 @@ class Manager
 
         $details = $this->getDetails($sid);
 
-        if (file_exists($details['saveFile'])) {
-            @unlink($details['saveFile']);
+        if (file_exists($details->filename)) {
+            @unlink($details->filename);
         }
 
         return true;
