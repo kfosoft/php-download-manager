@@ -310,4 +310,13 @@ class Manager
     {
         return md5(trim($url));
     }
+
+    /**
+     * @param string $filename filename.
+     * @return string full path to file.
+     */
+    public function getDownloadedFile($filename)
+    {
+        return @is_file($path = "{$this->downloadDir}/$filename") ? $path : null;
+    }
 }
